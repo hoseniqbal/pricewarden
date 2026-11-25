@@ -268,61 +268,66 @@ class PriceWarden_Features {
 	 * @return void
 	 */
 	public static function on_save( $product ) {
-		if ( ! $product instanceof WC_Product || ! $product->get_id() ) {
+		if ( ! $product instanceof WC_Product || ! $product->get_id() || $product->is_type( 'variable' ) || $product->is_type( 'grouped' ) ) {
 			return;
 		}
 		$id   = $product->get_id();
 		$have = get_post_meta( $id, self::REF, true );
-		$new  = self::list_price( $product );
+		$list = self::list_price( $product );
 		if ( '' === $have ) {
-			if ( $new > 0 ) {
-				update_post_meta( $id, self::REF, wc_format_decimal( $new ) );
+			if ( $list > 0 ) {
+				update_post_meta( $id, self::REF, wc_format_decimal( $list ) );
 			}
 			return;
 		}
 		$ref = (float) $have;
-		if ( abs( $new - $ref ) < 0.0001 ) {
-			delete_post_meta( $id, self::CHANGED );
-			return;
-		}
-		if ( $new > $ref ) {
+		if ( $list > $ref + 0.0001 ) {
 			self::accept( $product, get_current_user_id() );
-			return;
-		}
-		if ( ! get_post_meta( $id, self::CHANGED, true ) ) {
-			update_post_meta( $id, self::CHANGED, time() );
-			PriceWarden_Log::add(
-				'price_change',
-				array(
-					'object_id' => $id,
-					'field'     => 'price',
-					'old'       => $ref,
-					'new'       => $new,
-					'detail'    => self::name( $product ),
-				)
-			);
+			$ref = $list;
+		} elseif ( $list < $ref - 0.0001 ) {
+			if ( ! get_post_meta( $id, self::CHANGED, true ) ) {
+				update_post_meta( $id, self::CHANGED, time() );
+				PriceWarden_Log::add(
+					'price_change',
+					array(
+						'object_id' => $id,
+						'field'     => 'price',
+						'old'       => $ref,
+						'new'       => $list,
+						'detail'    => self::name( $product ),
+					)
+				);
+			}
+		} else {
+			delete_post_meta( $id, self::CHANGED );
 		}
 		$sale = $product->get_sale_price( 'edit' );
-		$now  = '' !== $sale ? min( $new, (float) $sale ) : $new;
+		$now  = '' !== $sale ? min( $list, (float) $sale ) : $list;
 		$pct  = $ref > 0 ? 100 * ( $ref - $now ) / $ref : 0;
-		if ( PriceWarden_Settings::on( 'alert_drops' ) && ( $now <= 0 || $pct >= (int) PriceWarden_Settings::get( 'alert_percent' ) ) ) {
-			PriceWarden_Log::add(
-				'price_drop',
-				array(
-					'object_id' => $id,
-					'field'     => 'price',
-					'old'       => $ref,
-					'new'       => $now,
-					'detail'    => self::name( $product ),
-				)
-			);
-			self::$drops[ $id ] = array(
-				'name' => self::name( $product ),
-				'ref'  => $ref,
-				'now'  => $now,
-				'by'   => wp_get_current_user()->exists() ? wp_get_current_user()->display_name : __( 'an import or another plugin', 'pricewarden' ),
-			);
+		if ( ! PriceWarden_Settings::on( 'alert_drops' ) || $ref <= 0 || ( $now > 0 && $pct < (int) PriceWarden_Settings::get( 'alert_percent' ) ) ) {
+			delete_post_meta( $id, '_pricewarden_alerted' );
+			return;
 		}
+		if ( (string) get_post_meta( $id, '_pricewarden_alerted', true ) === (string) wc_format_decimal( $now ) ) {
+			return;
+		}
+		update_post_meta( $id, '_pricewarden_alerted', wc_format_decimal( $now ) );
+		PriceWarden_Log::add(
+			'price_drop',
+			array(
+				'object_id' => $id,
+				'field'     => 'price',
+				'old'       => $ref,
+				'new'       => $now,
+				'detail'    => self::name( $product ),
+			)
+		);
+		self::$drops[ $id ] = array(
+			'name' => self::name( $product ),
+			'ref'  => $ref,
+			'now'  => $now,
+			'by'   => wp_get_current_user()->exists() ? wp_get_current_user()->display_name : __( 'an import or another plugin', 'pricewarden' ),
+		);
 	}
 
 	/**
