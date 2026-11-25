@@ -683,6 +683,8 @@ class PriceWarden_Features {
 			'sale_high'    => __( 'Sale price not lower than regular', 'pricewarden' ),
 			'below'        => __( 'Far below normal price', 'pricewarden' ),
 			'drop'         => __( 'Far below normal price', 'pricewarden' ),
+			'restored'     => __( 'Previous price restored', 'pricewarden' ),
+			'below_cost'   => __( 'Below cost', 'pricewarden' ),
 		);
 		return isset( $labels[ $key ] ) ? $labels[ $key ] : $key;
 	}
