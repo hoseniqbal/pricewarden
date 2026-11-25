@@ -70,6 +70,7 @@ class PriceWarden_Features {
 		return array(
 			'accepted' => array( 'success', __( 'New price accepted. It is now the normal price for this product.', 'pricewarden' ) ),
 			'free'     => array( 'success', __( 'This product may now be sold at any price, including free.', 'pricewarden' ) ),
+			'sale'     => array( 'success', __( 'This sale price is allowed until the sale ends. The normal price stays the same.', 'pricewarden' ) ),
 			'scanned'  => array( 'success', __( 'Price check finished.', 'pricewarden' ) ),
 		);
 	}
@@ -302,8 +303,12 @@ class PriceWarden_Features {
 			delete_post_meta( $id, self::CHANGED );
 		}
 		$sale = $product->get_sale_price( 'edit' );
-		$now  = '' !== $sale ? min( $list, (float) $sale ) : $list;
-		$pct  = $ref > 0 ? 100 * ( $ref - $now ) / $ref : 0;
+		if ( '' === $sale && (int) get_post_meta( $id, self::ALLOW, true ) < 4102444800 ) {
+			// A sale allowance ends with the sale.
+			delete_post_meta( $id, self::ALLOW );
+		}
+		$now = '' !== $sale ? min( $list, (float) $sale ) : $list;
+		$pct = $ref > 0 ? 100 * ( $ref - $now ) / $ref : 0;
 		if ( ! PriceWarden_Settings::on( 'alert_drops' ) || $ref <= 0 || ( $now > 0 && $pct < (int) PriceWarden_Settings::get( 'alert_percent' ) ) ) {
 			delete_post_meta( $id, '_pricewarden_alerted' );
 			return;
@@ -627,6 +632,7 @@ class PriceWarden_Features {
 				$end   = $product->get_date_on_sale_to( 'edit' );
 				$until = $end ? $end->getTimestamp() : time() + 30 * DAY_IN_SECONDS;
 				update_post_meta( $id, self::ALLOW, $until );
+				$mode = 'sale';
 				PriceWarden_Log::add(
 					'allowed',
 					array(
@@ -641,7 +647,7 @@ class PriceWarden_Features {
 			}
 		}
 		self::scan();
-		PriceWarden_Admin::back( 'check', 'free' === $mode ? 'free' : 'accepted' );
+		PriceWarden_Admin::back( 'check', in_array( $mode, array( 'free', 'sale' ), true ) ? $mode : 'accepted' );
 	}
 
 	/**
