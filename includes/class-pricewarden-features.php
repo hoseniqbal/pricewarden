@@ -258,7 +258,7 @@ class PriceWarden_Features {
 	 * @return string
 	 */
 	private static function name( $product ) {
-		return wp_strip_all_tags( $product->get_formatted_name() );
+		return wp_strip_all_tags( $product->get_name() );
 	}
 
 	/**
@@ -619,7 +619,26 @@ class PriceWarden_Features {
 				)
 			);
 		} else {
-			self::accept( $product, get_current_user_id() );
+			$ref   = self::ref( $product );
+			$floor = $ref * ( 1 - (int) PriceWarden_Settings::get( 'drop_percent' ) / 100 );
+			$sale  = $product->get_sale_price( 'edit' );
+			if ( '' !== $sale && (float) $sale < $floor && self::list_price( $product ) >= $floor ) {
+				// A sale on purpose: allow it until the sale ends (or 30 days), keep the normal price.
+				$end   = $product->get_date_on_sale_to( 'edit' );
+				$until = $end ? $end->getTimestamp() : time() + 30 * DAY_IN_SECONDS;
+				update_post_meta( $id, self::ALLOW, $until );
+				PriceWarden_Log::add(
+					'allowed',
+					array(
+						'object_id' => $id,
+						'old'       => $ref,
+						'new'       => $sale,
+						'detail'    => 'sale until ' . gmdate( 'Y-m-d', $until ),
+					)
+				);
+			} else {
+				self::accept( $product, get_current_user_id() );
+			}
 		}
 		self::scan();
 		PriceWarden_Admin::back( 'check', 'free' === $mode ? 'free' : 'accepted' );
@@ -652,7 +671,7 @@ class PriceWarden_Features {
 			'price_drop'   => __( 'Big price drop', 'pricewarden' ),
 			'price_change' => __( 'Price lowered', 'pricewarden' ),
 			'accepted'     => __( 'New price accepted', 'pricewarden' ),
-			'allowed'      => __( 'Any price allowed', 'pricewarden' ),
+			'allowed'      => __( 'Lower price allowed', 'pricewarden' ),
 			'zero'         => __( 'Price is zero', 'pricewarden' ),
 			'no_price'     => __( 'No price set', 'pricewarden' ),
 			'sale_high'    => __( 'Sale price not lower than regular', 'pricewarden' ),
