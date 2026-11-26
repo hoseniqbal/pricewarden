@@ -542,7 +542,7 @@ class PriceWarden_Admin {
 		if ( ! isset( $sections[ $section ] ) ) {
 			wp_die( esc_html__( 'Unknown section.', 'pricewarden' ) );
 		}
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each field is cleaned in PriceWarden_Settings::clean().
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.NonceVerification.Missing -- nonce checked in guard(); each field is cleaned in PriceWarden_Settings::clean().
 		$input = isset( $_POST['wd'] ) && is_array( $_POST['wd'] ) ? wp_unslash( $_POST['wd'] ) : array();
 		PriceWarden_Settings::save( $input, $sections[ $section ] );
 		self::back( 'settings' === $section ? 'settings' : self::current_tab_from_section( $section ), 'saved' );
