@@ -844,6 +844,7 @@ class PriceWarden_Features {
 		);
 		$a::row(
 			__( 'Message to customers', 'pricewarden' ),
+			/* translators: %s stays as it is: it is replaced by the product name. */
 			__( 'Use %s for the product name.', 'pricewarden' ),
 			static function () use ( $a ) {
 				$a::text( 'message', __( 'Message', 'pricewarden' ) );
